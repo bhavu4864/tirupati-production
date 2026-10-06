@@ -300,7 +300,7 @@ export default function MachinePage() {
                 <button type="submit" disabled={saving} className="min-h-11 shrink-0 rounded-lg bg-blue-600 px-4 font-semibold text-white disabled:opacity-60">Add Machine</button>
               </form>
               {machines.map((machine) => (
-                    <div key={machine.id} className="flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:items-center">
+                    <div key={machine.id} className="flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:flex-wrap sm:items-center">
                       <input
                         required
                         maxLength={120}
@@ -325,30 +325,31 @@ export default function MachinePage() {
                       >
                         Save Name
                       </button>
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => void updateMachine(machine, machine.status === "Active" ? "Inactive" : "Active")}
-                        className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium disabled:opacity-60"
-                      >
-                        {machine.status === "Active"
-                          ? machine.hasProductionHistory ? "Deactivate / Archive" : "Deactivate"
-                          : "Activate"}
-                      </button>
-                      {!machine.hasProductionHistory && (
+                      {machine.hasProductionHistory ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void updateMachine(machine, machine.status === "Active" ? "Inactive" : "Active")}
+                            className="min-h-11 rounded-lg border border-amber-300 px-3 text-sm font-semibold text-amber-900 disabled:opacity-60"
+                            aria-label={`${machine.status === "Active" ? "Deactivate" : "Activate"} ${machine.machineName}`}
+                          >
+                            {machine.status === "Active" ? "Deactivate" : "Activate"}
+                          </button>
+                          <span className="text-xs text-slate-600 sm:basis-full">
+                            Permanent delete is unavailable because this machine has production history. Deactivate it to preserve its records.
+                          </span>
+                        </>
+                      ) : (
                         <button
                           type="button"
                           disabled={saving}
                           onClick={() => void deleteMachine(machine)}
-                          className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 disabled:opacity-60"
+                          className="min-h-11 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 disabled:opacity-60"
+                          aria-label={`Delete ${machine.machineName}`}
                         >
                           Delete
                         </button>
-                      )}
-                      {machine.hasProductionHistory && (
-                        <span className="text-xs text-slate-500">
-                          Production history — permanent deletion disabled
-                        </span>
                       )}
                     </div>
                   ))}
