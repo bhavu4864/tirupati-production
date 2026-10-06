@@ -165,7 +165,7 @@ export default function WIPPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="mobile-card-table mobile-card-table--wip w-full text-left">
 
               <thead className="bg-slate-50 text-sm text-slate-500">
                 <tr>

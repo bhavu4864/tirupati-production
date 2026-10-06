@@ -259,7 +259,7 @@ export default function Home() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="mobile-card-table mobile-card-table--dashboard w-full text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="text-left p-4">PO</th>

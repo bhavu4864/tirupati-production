@@ -7,9 +7,10 @@ import { useAuth } from "../components/auth-provider";
 const priorities = ["Normal", "High", "Urgent"] as const;
 const statuses = [
   "Pending",
-  "Running",
-  "Ready in Stock",
-  "Raw Material Required",
+  "Processing",
+  "Packing",
+  "Partial Delivery",
+  "Fully Dispatched",
 ] as const;
 
 type OrderPriority = (typeof priorities)[number];
@@ -27,8 +28,14 @@ type CustomerOrder = {
   dueDate: string;
   priority: OrderPriority;
   status: OrderStatus;
+  dispatchedQuantity: number;
+  remainingQuantity: number;
+  dispatchRecordCount: number;
 };
-type OrderDraft = Omit<CustomerOrder, "id">;
+type OrderDraft = Omit<
+  CustomerOrder,
+  "id" | "dispatchedQuantity" | "remainingQuantity" | "dispatchRecordCount"
+>;
 
 const today = () => {
   const date = new Date();
@@ -66,6 +73,7 @@ export default function OrdersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -148,6 +156,46 @@ export default function OrdersPage() {
     }
   }
 
+  async function deleteOrder(order: CustomerOrder) {
+    if (!window.confirm("Are you sure you want to delete this order?")) return;
+    if (
+      order.dispatchRecordCount > 0 &&
+      !window.confirm(
+        `This order has ${order.dispatchedQuantity.toLocaleString()} PCS dispatched across ${order.dispatchRecordCount} dispatch record(s). Deleting it removes the order from Order Management, but preserves all dispatch history. Continue?`,
+      )
+    ) {
+      return;
+    }
+
+    setDeletingId(order.id);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/orders/${encodeURIComponent(order.id)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        setError(await responseError(response));
+        return;
+      }
+      setMessage(
+        order.dispatchRecordCount > 0
+          ? "Order deleted. Its dispatch records remain in Dispatch History."
+          : "Order deleted.",
+      );
+      if (editingId === order.id) {
+        setDraft(null);
+        setEditingId(null);
+      }
+      await loadOrders();
+    } catch {
+      setError("Unable to delete the order.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const activeOrders = orders.filter((order) => order.status !== "Fully Dispatched");
   const inputClass = "mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base";
 
   return (
@@ -184,7 +232,7 @@ export default function OrdersPage() {
             <label className="text-sm font-medium">Purchase Date<input required type="date" value={draft.purchaseDate} max={draft.dueDate || undefined} onChange={(event) => setDraft({ ...draft, purchaseDate: event.target.value })} className={inputClass} /></label>
             <label className="text-sm font-medium">Due / Dispatch Date<input required type="date" value={draft.dueDate} min={draft.purchaseDate || undefined} onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })} className={inputClass} /></label>
             <label className="text-sm font-medium">Priority<select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as OrderPriority })} className={inputClass}>{priorities.map((priority) => <option key={priority}>{priority}</option>)}</select></label>
-            <label className="text-sm font-medium">Status<select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as OrderStatus })} className={inputClass}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
+            <label className="text-sm font-medium">Status<select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as OrderStatus })} className={inputClass}>{statuses.map((status) => <option key={status} disabled={status === "Partial Delivery" || status === "Fully Dispatched"}>{status}</option>)}</select></label>
             <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
               <button type="submit" disabled={saving} className="min-h-11 rounded-lg bg-blue-600 px-4 font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : editingId ? "Save Order" : "Create Order"}</button>
               <button type="button" onClick={() => { setDraft(null); setEditingId(null); }} className="min-h-11 rounded-lg border border-slate-300 px-4 font-medium">Cancel</button>
@@ -195,23 +243,46 @@ export default function OrdersPage() {
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <h2 className="border-b border-slate-200 px-4 py-3 text-lg font-semibold">Orders</h2>
           {loading ? <p className="p-4 text-sm text-slate-500">Loading orders…</p> :
-            orders.length === 0 ? <p className="p-4 text-sm text-slate-500">No orders yet.</p> :
+            activeOrders.length === 0 ? <p className="p-4 text-sm text-slate-500">{orders.length > 0 ? "All orders are fully dispatched." : "No orders yet."}</p> :
               <div className="divide-y divide-slate-200">
-                {orders.map((order) => (
+                {activeOrders.map((order) => (
                   <article key={order.id} className="space-y-3 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div><h3 className="font-semibold">{order.companyName}</h3><p className="text-sm text-slate-600">PO: {order.poNumber} · {order.itemName}</p></div>
-                      {canManage && <button type="button" onClick={() => openEditOrder(order)} className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium">Edit</button>}
+                      <div className="min-w-0">
+                        <h3 className="font-semibold">{order.companyName}</h3>
+                        <p className="break-words text-sm text-slate-600">PO: {order.poNumber} · {order.itemName}</p>
+                        <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                          order.status === "Fully Dispatched"
+                            ? "bg-green-100 text-green-700"
+                            : order.status === "Partial Delivery"
+                              ? "bg-amber-100 text-amber-800"
+                              : order.status === "Packing"
+                                ? "bg-purple-100 text-purple-700"
+                                : order.status === "Processing"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-slate-100 text-slate-700"
+                        }`}>{order.status}</span>
+                      </div>
+                      {canManage && (
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => openEditOrder(order)} className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm font-medium">Edit</button>
+                          <button type="button" onClick={() => void deleteOrder(order)} disabled={deletingId === order.id} className="min-h-11 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 disabled:opacity-60">{deletingId === order.id ? "Deleting…" : "Delete"}</button>
+                        </div>
+                      )}
                     </div>
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
+                      <OrderValue label="Company" value={order.companyName} />
+                      <OrderValue label="PO Number" value={order.poNumber} />
+                      <OrderValue label="Item" value={order.itemName} />
                       <OrderValue label="Order By" value={order.orderBy} />
-                      <OrderValue label="Material" value={order.material} />
-                      <OrderValue label="Quantity" value={`${order.quantity} pcs`} />
+                      <OrderValue label="Ordered Qty" value={`${order.quantity.toLocaleString()} PCS`} />
+                      <OrderValue label="Dispatched Qty" value={`${order.dispatchedQuantity.toLocaleString()} PCS`} />
+                      <OrderValue label="Remaining Qty" value={`${order.remainingQuantity.toLocaleString()} PCS`} />
                       <OrderValue label="Rate" value={`₹${order.rate.toFixed(2)}`} />
+                      <OrderValue label="Material" value={order.material} />
                       <OrderValue label="Purchase Date" value={formatDate(order.purchaseDate)} />
-                      <OrderValue label="Due / Dispatch Date" value={formatDate(order.dueDate)} />
+                      <OrderValue label="Dispatch Date" value={formatDate(order.dueDate)} />
                       <OrderValue label="Priority" value={order.priority} />
-                      <OrderValue label="Status" value={order.status} />
                     </dl>
                   </article>
                 ))}

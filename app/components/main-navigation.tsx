@@ -35,9 +35,9 @@ export default function MainNavigation() {
   }
 
   return (
-    <nav className="border-b bg-white" aria-label="Main navigation">
-      <div className="mx-auto flex max-w-7xl flex-col justify-between gap-2 px-4 sm:px-6 md:flex-row md:items-center">
-        <div className="flex gap-2 overflow-x-auto">
+    <nav className="main-navigation border-b bg-white" aria-label="Main navigation">
+      <div className="main-navigation-inner mx-auto flex max-w-7xl flex-col justify-between gap-2 px-4 sm:px-6 md:flex-row md:items-center">
+        <div className="main-navigation-links flex gap-2 overflow-x-auto">
         {ready && user && navigationItems.filter((item) =>
           canAccessRoute(user.role, item.href),
         ).map((item) => {
@@ -59,7 +59,7 @@ export default function MainNavigation() {
         })}
         </div>
         {ready && user && (
-          <div className="flex shrink-0 items-center gap-3 py-2 text-xs sm:text-sm">
+          <div className="main-navigation-user flex shrink-0 items-center gap-3 py-2 text-xs sm:text-sm">
             <span className="text-slate-600">
               <strong className="text-slate-800">{user.name}</strong>
               <span className="mx-1 text-slate-300">•</span>

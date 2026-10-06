@@ -673,6 +673,24 @@ async function syncDispatches(client: PoolClient, dispatches: State["dispatches"
     }
     const delta = shipped - oldShipped;
     if (delta > 0) {
+      const { rows: simpleOrderRows } = await client.query<{ quantity: number }>(
+        `SELECT quantity
+         FROM simple_customer_orders
+         WHERE LOWER(po_number) = LOWER($1)
+         FOR UPDATE`,
+        [item.po],
+      );
+      if (simpleOrderRows[0]) {
+        const { rows: totalRows } = await client.query<{ quantity: number }>(
+          `SELECT COALESCE(SUM(quantity), 0)::INTEGER AS quantity
+           FROM dispatch_transactions
+           WHERE LOWER(po) = LOWER($1)`,
+          [item.po],
+        );
+        if (Number(totalRows[0].quantity) + delta > simpleOrderRows[0].quantity) {
+          throw new Error(`Dispatch quantity exceeds the ordered quantity for ${item.po}.`);
+        }
+      }
       const id = randomUUID();
       await client.query(
         `INSERT INTO dispatch_transactions

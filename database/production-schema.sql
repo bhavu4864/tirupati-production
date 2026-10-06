@@ -122,12 +122,28 @@ CREATE TABLE IF NOT EXISTS simple_customer_orders (
   due_date DATE NOT NULL,
   priority TEXT NOT NULL CHECK (priority IN ('Normal', 'High', 'Urgent')),
   status TEXT NOT NULL CHECK (
-    status IN ('Pending', 'Running', 'Ready in Stock', 'Raw Material Required')
+    status IN ('Pending', 'Processing', 'Packing', 'Partial Delivery', 'Fully Dispatched')
   ),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (due_date >= purchase_date)
 );
+
+ALTER TABLE simple_customer_orders
+  DROP CONSTRAINT IF EXISTS simple_customer_orders_status_check;
+
+UPDATE simple_customer_orders
+SET status = CASE status
+  WHEN 'Running' THEN 'Processing'
+  WHEN 'Ready in Stock' THEN 'Packing'
+  WHEN 'Raw Material Required' THEN 'Pending'
+  ELSE status
+END
+WHERE status IN ('Running', 'Ready in Stock', 'Raw Material Required');
+
+ALTER TABLE simple_customer_orders
+  ADD CONSTRAINT simple_customer_orders_status_check
+  CHECK (status IN ('Pending', 'Processing', 'Packing', 'Partial Delivery', 'Fully Dispatched'));
 
 CREATE UNIQUE INDEX IF NOT EXISTS simple_customer_orders_po_lower_unique
   ON simple_customer_orders (LOWER(po_number));
@@ -148,9 +164,8 @@ SELECT
   GREATEST(o.due_date, COALESCE(o.purchase_date, o.created_at::DATE)),
   CASE o.priority WHEN 'High' THEN 'High' ELSE 'Normal' END,
   CASE o.status
-    WHEN 'In Production' THEN 'Running'
-    WHEN 'Completed' THEN 'Ready in Stock'
-    WHEN 'On Hold' THEN 'Raw Material Required'
+    WHEN 'In Production' THEN 'Processing'
+    WHEN 'Completed' THEN 'Packing'
     ELSE 'Pending'
   END,
   o.created_at,

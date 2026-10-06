@@ -14,6 +14,7 @@ type MachineRow = {
   notes: string;
   created_at: Date;
   updated_at: Date;
+  has_production_history?: boolean;
 };
 
 function toMachine(row: MachineRow) {
@@ -27,6 +28,7 @@ function toMachine(row: MachineRow) {
     notes: row.notes,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    hasProductionHistory: Boolean(row.has_production_history),
   };
 }
 
@@ -46,9 +48,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
   }
   const { rows } = await getDatabase().query<MachineRow>(
-    `SELECT id, machine_name, machine_code, machine_type, status, location, notes,
-            created_at, updated_at
-     FROM machine_master
+    `SELECT m.id, m.machine_name, m.machine_code, m.machine_type, m.status, m.location, m.notes,
+            m.created_at, m.updated_at,
+            EXISTS (
+              SELECT 1
+              FROM machine_daily_records r
+              WHERE r.machine_id = m.id
+              UNION ALL
+              SELECT 1
+              FROM production_transactions p
+              WHERE p.machine = m.machine_name
+            ) AS has_production_history
+     FROM machine_master m
      ${includeInactive ? "" : "WHERE status = 'Active'"}
      ORDER BY machine_name`,
   );

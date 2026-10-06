@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import MainNavigation from "../components/main-navigation";
 import { useAuth } from "../components/auth-provider";
 
-type Machine = { id: string; machineName: string; status: "Active" | "Inactive" };
+type Machine = {
+  id: string;
+  machineName: string;
+  status: "Active" | "Inactive";
+  hasProductionHistory: boolean;
+};
 type MachineRecord = {
   id: string;
   machineId: string;
@@ -146,6 +151,32 @@ export default function MachinePage() {
       await loadMachineData();
     } catch {
       setError("Unable to update the machine.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteMachine(machine: Machine) {
+    if (machine.hasProductionHistory) {
+      setError(`${machine.machineName} has production history and cannot be permanently deleted. Deactivate / archive it instead.`);
+      return;
+    }
+    if (!window.confirm("Are you sure you want to permanently delete this machine?")) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/machine-master/${encodeURIComponent(machine.id)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        setError(await responseError(response));
+        return;
+      }
+      setMessage(`${machine.machineName} permanently deleted.`);
+      await loadMachineData();
+    } catch {
+      setError("Unable to delete the machine.");
     } finally {
       setSaving(false);
     }
@@ -300,8 +331,25 @@ export default function MachinePage() {
                         onClick={() => void updateMachine(machine, machine.status === "Active" ? "Inactive" : "Active")}
                         className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium disabled:opacity-60"
                       >
-                        {machine.status === "Active" ? "Deactivate" : "Activate"}
+                        {machine.status === "Active"
+                          ? machine.hasProductionHistory ? "Deactivate / Archive" : "Deactivate"
+                          : "Activate"}
                       </button>
+                      {!machine.hasProductionHistory && (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void deleteMachine(machine)}
+                          className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
+                      )}
+                      {machine.hasProductionHistory && (
+                        <span className="text-xs text-slate-500">
+                          Production history — permanent deletion disabled
+                        </span>
+                      )}
                     </div>
                   ))}
             </div>
@@ -311,20 +359,20 @@ export default function MachinePage() {
         {canRecord && isEntryOpen && (
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-lg font-semibold">Add Daily Production</h2>
-            <form onSubmit={saveDailyData} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <form onSubmit={saveDailyData} className="machine-entry-form mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <label className="text-sm font-medium">Machine<select required value={draft?.machineId ?? ""} onChange={(event) => setDraft({ ...(draft ?? emptyData()), machineId: event.target.value })} className={inputClass}><option value="">Select machine</option>{machines.filter((machine) => machine.status === "Active").map((machine) => <option key={machine.id} value={machine.id}>{machine.machineName}</option>)}</select></label>
               <label className="text-sm font-medium">Date<input required type="date" value={draft?.date ?? localDate()} onChange={(event) => setDraft({ ...(draft ?? emptyData()), date: event.target.value })} className={inputClass} /></label>
               <label className="text-sm font-medium">Part No.<input required maxLength={120} value={draft?.partNo ?? ""} onChange={(event) => setDraft({ ...(draft ?? emptyData()), partNo: event.target.value })} className={inputClass} /></label>
               <label className="text-sm font-medium">8:00 AM to 12:30 PM - PCS<input required type="number" min="0" step="1" value={draft?.morningPcs ?? 0} onChange={(event) => setDraft({ ...(draft ?? emptyData()), morningPcs: Number(event.target.value) })} className={inputClass} /></label>
               <label className="text-sm font-medium">1:00 PM to 7:00 PM - PCS<input required type="number" min="0" step="1" value={draft?.eveningPcs ?? 0} onChange={(event) => setDraft({ ...(draft ?? emptyData()), eveningPcs: Number(event.target.value) })} className={inputClass} /></label>
-              <div className="rounded-lg bg-slate-50 p-3 text-sm sm:col-span-2 lg:col-span-3">
+              <div className="machine-total rounded-lg bg-slate-50 p-3 text-sm sm:col-span-2 lg:col-span-3">
                 <span className="text-slate-500">Total PCS</span>
                 <strong className="ml-2 text-lg">{((draft?.morningPcs ?? 0) + (draft?.eveningPcs ?? 0)).toLocaleString()}</strong>
               </div>
               <label className="text-sm font-medium">Operator Name<input required maxLength={120} value={draft?.operatorName ?? ""} onChange={(event) => setDraft({ ...(draft ?? emptyData()), operatorName: event.target.value })} className={inputClass} /></label>
               <label className="text-sm font-medium">Breakdown<select value={draft?.breakdown ?? "No"} onChange={(event) => setDraft({ ...(draft ?? emptyData()), breakdown: event.target.value as MachineData["breakdown"], breakdownReason: event.target.value === "No" ? "" : (draft?.breakdownReason ?? "") })} className={inputClass}><option>Yes</option><option>No</option></select></label>
               {draft?.breakdown === "Yes" && <label className="text-sm font-medium sm:col-span-2 lg:col-span-3">Breakdown Reason / What Happened<textarea required maxLength={1000} rows={2} value={draft.breakdownReason} onChange={(event) => setDraft({ ...draft, breakdownReason: event.target.value })} className={inputClass} /></label>}
-              <button type="submit" disabled={saving || !draft?.machineId} className="min-h-11 rounded-lg bg-blue-600 px-4 font-semibold text-white disabled:opacity-60 sm:col-span-2 lg:col-span-3">{saving ? "Saving…" : "Save Daily Production"}</button>
+              <button type="submit" disabled={saving || !draft?.machineId} className="machine-save min-h-11 rounded-lg bg-blue-600 px-4 font-semibold text-white disabled:opacity-60 sm:col-span-2 lg:col-span-3">{saving ? "Saving…" : "Save Daily Production"}</button>
             </form>
           </section>
         )}
@@ -347,7 +395,7 @@ export default function MachinePage() {
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${machine.status === "Active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"}`}>{machine.status}</span>
                   </div>
                   {history.length === 0 ? <p className="p-4 text-sm text-slate-500">No production records yet.</p> :
-                    <div className="overflow-x-auto">
+                    <div className="hidden overflow-x-auto md:block">
                       <table className="w-full min-w-[900px] border-collapse text-left text-sm">
                         <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
                           <tr>
@@ -379,6 +427,36 @@ export default function MachinePage() {
                         </tbody>
                       </table>
                     </div>}
+                  {history.length > 0 && (
+                    <div className="divide-y divide-slate-100 md:hidden">
+                      {history.map((record) => (
+                        <article key={record.id} className="space-y-3 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h3 className="font-semibold">{record.partNo}</h3>
+                              <p className="text-sm text-slate-500">{formatDate(record.date)}</p>
+                            </div>
+                            <p className="text-right">
+                              <span className="block text-xs text-slate-500">Total PCS</span>
+                              <strong className="text-lg text-blue-800">{record.totalPcs.toLocaleString()}</strong>
+                            </p>
+                          </div>
+                          <dl className="grid grid-cols-2 gap-3 text-sm">
+                            <div><dt className="text-xs text-slate-500">8:00 AM–12:30 PM</dt><dd className="font-medium">{record.morningPcs.toLocaleString()} PCS</dd></div>
+                            <div><dt className="text-xs text-slate-500">1:00 PM–7:00 PM</dt><dd className="font-medium">{record.eveningPcs.toLocaleString()} PCS</dd></div>
+                            <div><dt className="text-xs text-slate-500">Operator</dt><dd className="break-words font-medium">{record.operatorName}</dd></div>
+                            <div><dt className="text-xs text-slate-500">Breakdown</dt><dd className="font-medium">{record.breakdown}</dd></div>
+                          </dl>
+                          {record.breakdown === "Yes" && (
+                            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                              <span className="block text-xs font-semibold text-amber-700">Breakdown reason</span>
+                              {record.breakdownReason}
+                            </p>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </section>
               );
             })}

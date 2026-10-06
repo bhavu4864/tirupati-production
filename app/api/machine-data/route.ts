@@ -8,6 +8,7 @@ type MachineRow = {
   id: string;
   machine_name: string;
   status: "Active" | "Inactive";
+  has_production_history?: boolean;
 };
 
 type RecordRow = {
@@ -48,8 +49,18 @@ export async function GET(request: Request) {
   const database = getDatabase();
   const [machines, records] = await Promise.all([
     database.query<MachineRow>(
-      `SELECT id, machine_name, status FROM machine_master
-       ORDER BY machine_name`,
+      `SELECT m.id, m.machine_name, m.status,
+              EXISTS (
+                SELECT 1
+                FROM machine_daily_records r
+                WHERE r.machine_id = m.id
+                UNION ALL
+                SELECT 1
+                FROM production_transactions p
+                WHERE p.machine = m.machine_name
+              ) AS has_production_history
+       FROM machine_master m
+       ORDER BY m.machine_name`,
     ),
     database.query<RecordRow>(
       `SELECT id, machine_id, machine_name, production_date::TEXT, part_no,
@@ -66,6 +77,7 @@ export async function GET(request: Request) {
       id: machine.id,
       machineName: machine.machine_name,
       status: machine.status,
+      hasProductionHistory: machine.has_production_history,
     })),
     records: records.rows.map((record) => ({
       id: record.id,

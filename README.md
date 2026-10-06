@@ -15,6 +15,8 @@ Administrators can then create and manage accounts from **User Management**. Pas
 
 Production orders and machine settings are stored in PostgreSQL. Production, QC, and dispatch totals are derived from their transaction records; `production_wip_stages` exposes awaiting-inspection, QC-passed, and rejected/blocked quantities. Mutations use a serialized application version check and a database transaction; repeated request IDs cannot apply twice. The Admin-only backup panel creates and retains JSON exports in PostgreSQL. Exports include user account metadata but exclude password hashes, sessions, and database credentials.
 
+Order Management tracks dispatch totals by PO from dispatch transaction history. Orders automatically move to Partial Delivery or Fully Dispatched as quantities ship; fully dispatched orders remain in Dispatch History. The schema migration maps the previous order statuses to the current Pending, Processing, and Packing workflow without removing orders or dispatch records. Machines with production history must be deactivated rather than permanently deleted.
+
 ## Getting Started
 
 First, run the development server:

@@ -398,7 +398,7 @@ export default function DispatchPage() {
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1150px] text-left text-sm">
+            <table className="mobile-card-table mobile-card-table--dispatch-readiness w-full min-w-[1150px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-5 py-4 font-semibold">Order / Customer</th>
@@ -731,7 +731,7 @@ export default function DispatchPage() {
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1950px] text-left text-sm">
+            <table className="mobile-card-table mobile-card-table--dispatch-register w-full min-w-[1950px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-4 font-semibold">Dispatch ID</th>
@@ -878,7 +878,8 @@ export default function DispatchPage() {
             </table>
           </div>
           <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-400 sm:px-6">
-            Scroll horizontally to see all order, QC, dispatch, and action details.
+            <span className="hidden md:inline">Scroll horizontally to see all order, QC, dispatch, and action details.</span>
+            <span className="md:hidden">Use the filters to narrow records and review each dispatch card.</span>
           </p>
         </section>
 

@@ -92,3 +92,67 @@ export async function PATCH(
     client.release();
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const cookieStore = await cookies();
+  const user = await getSessionIdentity(cookieStore.get(authCookieName)?.value);
+  if (!user) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+  if (user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+  }
+
+  const { id } = await context.params;
+  const client = await getDatabase().connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<{ machine_name: string }>(
+      "SELECT machine_name FROM machine_master WHERE id = $1 FOR UPDATE",
+      [id],
+    );
+    const machine = rows[0];
+    if (!machine) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Machine was not found." }, { status: 404 });
+    }
+    const { rows: historyRows } = await client.query<{ has_history: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM machine_daily_records WHERE machine_id = $1
+         UNION ALL
+         SELECT 1 FROM production_transactions WHERE machine = $2
+       ) AS has_history`,
+      [id, machine.machine_name],
+    );
+    if (historyRows[0].has_history) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({
+        error: "This machine has production history and cannot be permanently deleted. Deactivate or archive it instead.",
+        hasProductionHistory: true,
+      }, { status: 409 });
+    }
+
+    await client.query("DELETE FROM machine_master WHERE id = $1", [id]);
+    await client.query(
+      `INSERT INTO audit_log (user_id, username, action, module, reference, details)
+       VALUES ($1,$2,'DELETE','MACHINE_MASTER',$3,$4::jsonb)`,
+      [user.id, user.username, id, JSON.stringify({ machineName: machine.machine_name })],
+    );
+    await client.query("COMMIT");
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "23503") {
+      return NextResponse.json({
+        error: "This machine is referenced by production history and cannot be permanently deleted. Deactivate or archive it instead.",
+        hasProductionHistory: true,
+      }, { status: 409 });
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}

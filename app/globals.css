@@ -24,3 +24,268 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media (max-width: 767px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  main > header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    padding: 0.75rem 1rem;
+  }
+
+  .main-navigation {
+    position: fixed;
+    z-index: 40;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -4px 16px rgb(15 23 42 / 8%);
+  }
+
+  .main-navigation-inner {
+    min-height: 3.75rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25rem;
+    padding-right: 0.5rem;
+    padding-left: 0.5rem;
+  }
+
+  .main-navigation-links {
+    min-width: 0;
+    flex: 1;
+    justify-content: space-around;
+    gap: 0.25rem;
+    overflow: visible;
+  }
+
+  .main-navigation-links a {
+    display: inline-flex;
+    min-height: 3.5rem;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.25rem;
+    text-align: center;
+  }
+
+  .main-navigation-user {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .main-navigation-user > span {
+    display: none;
+  }
+
+  .main-navigation-user button {
+    min-height: 2.75rem;
+    padding-right: 0.625rem;
+    padding-left: 0.625rem;
+  }
+
+  .main-navigation + div {
+    padding-right: 1rem;
+    padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+    padding-left: 1rem;
+  }
+
+  button,
+  a[role="button"] {
+    touch-action: manipulation;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    max-width: 100%;
+    min-height: 2.75rem;
+    font-size: 16px;
+  }
+
+  button {
+    min-height: 2.75rem;
+  }
+
+  .machine-entry-form input,
+  .machine-entry-form select,
+  .machine-entry-form textarea {
+    min-height: 3rem;
+  }
+
+  .machine-entry-form .machine-save {
+    min-height: 3.5rem;
+  }
+
+  .machine-total {
+    padding: 1rem;
+    background-color: #eff6ff;
+  }
+
+  .machine-total strong {
+    color: #1e40af;
+    font-size: 1.5rem;
+  }
+
+  .overflow-x-auto {
+    overflow-x: visible;
+  }
+
+  .mobile-card-table {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+    border-collapse: separate;
+  }
+
+  .mobile-card-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+  }
+
+  .mobile-card-table tbody {
+    display: block;
+    padding: 0.5rem;
+  }
+
+  .mobile-card-table tbody tr {
+    display: block;
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    background: #fff;
+  }
+
+  .mobile-card-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .mobile-card-table tbody td {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0 !important;
+    border: 0;
+    text-align: left !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-card-table tbody td::before {
+    flex: 0 0 38%;
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+  }
+
+  .mobile-card-table tbody td > * {
+    min-width: 0;
+    max-width: 62%;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-card-table tbody td:has(> p) {
+    display: grid;
+    grid-template-columns: 38% minmax(0, 1fr);
+  }
+
+  .mobile-card-table tbody td:has(> p)::before {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .mobile-card-table tbody td[colspan] {
+    display: block;
+    text-align: center !important;
+  }
+
+  .mobile-card-table tbody td[colspan]::before {
+    display: none;
+  }
+
+  .mobile-card-table--dashboard td:nth-child(1)::before { content: "PO"; }
+  .mobile-card-table--dashboard td:nth-child(2)::before { content: "Customer"; }
+  .mobile-card-table--dashboard td:nth-child(3)::before { content: "Part"; }
+  .mobile-card-table--dashboard td:nth-child(4)::before { content: "Quantity"; }
+  .mobile-card-table--dashboard td:nth-child(5)::before { content: "Produced"; }
+  .mobile-card-table--dashboard td:nth-child(6)::before { content: "Balance"; }
+  .mobile-card-table--dashboard td:nth-child(7)::before { content: "Dispatched"; }
+  .mobile-card-table--dashboard td:nth-child(8)::before { content: "Order balance"; }
+  .mobile-card-table--dashboard td:nth-child(9)::before { content: "Delivery"; }
+  .mobile-card-table--dashboard td:nth-child(10)::before { content: "Status"; }
+
+  .mobile-card-table--wip td:nth-child(1)::before { content: "Part"; }
+  .mobile-card-table--wip td:nth-child(2)::before { content: "Order"; }
+  .mobile-card-table--wip td:nth-child(3)::before { content: "Material"; }
+  .mobile-card-table--wip td:nth-child(4)::before { content: "Machine"; }
+  .mobile-card-table--wip td:nth-child(5)::before { content: "Process"; }
+  .mobile-card-table--wip td:nth-child(6)::before { content: "WIP quantity"; }
+  .mobile-card-table--wip td:nth-child(7)::before { content: "Status"; }
+
+  .mobile-card-table--dispatch-readiness td:nth-child(1)::before { content: "Order / customer"; }
+  .mobile-card-table--dispatch-readiness td:nth-child(2)::before { content: "Part / material"; }
+  .mobile-card-table--dispatch-readiness td:nth-child(3)::before { content: "Machine"; }
+  .mobile-card-table--dispatch-readiness td:nth-child(4)::before { content: "Ordered"; }
+  .mobile-card-table--dispatch-readiness td:nth-child(5)::before { content: "Produced"; }
+  .mobile-card-table--dispatch-readiness td:nth-child(6)::before { content: "QC passed"; }
+  .mobile-card-table--dispatch-readiness td:nth-child(7)::before { content: "Ready to dispatch"; }
+  .mobile-card-table--dispatch-readiness td:nth-child(8)::before { content: "Dispatched"; }
+  .mobile-card-table--dispatch-readiness td:nth-child(9)::before { content: "Order balance"; }
+
+  .mobile-card-table--dispatch-register td:nth-child(1)::before { content: "Dispatch ID"; }
+  .mobile-card-table--dispatch-register td:nth-child(2)::before { content: "Order / customer"; }
+  .mobile-card-table--dispatch-register td:nth-child(3)::before { content: "Part / material"; }
+  .mobile-card-table--dispatch-register td:nth-child(4)::before { content: "Machine"; }
+  .mobile-card-table--dispatch-register td:nth-child(5)::before { content: "Ordered"; }
+  .mobile-card-table--dispatch-register td:nth-child(6)::before { content: "Produced"; }
+  .mobile-card-table--dispatch-register td:nth-child(7)::before { content: "Inspected"; }
+  .mobile-card-table--dispatch-register td:nth-child(8)::before { content: "QC passed"; }
+  .mobile-card-table--dispatch-register td:nth-child(9)::before { content: "Ready for dispatch"; }
+  .mobile-card-table--dispatch-register td:nth-child(10)::before { content: "Dispatched"; }
+  .mobile-card-table--dispatch-register td:nth-child(11)::before { content: "Balance"; }
+  .mobile-card-table--dispatch-register td:nth-child(12)::before { content: "Dispatch date"; }
+  .mobile-card-table--dispatch-register td:nth-child(13)::before { content: "Status"; }
+  .mobile-card-table--dispatch-register td:nth-child(14)::before { content: "Actions"; }
+
+  .mobile-card-table--inspection-measurements td:nth-child(1)::before { content: "Characteristic"; }
+  .mobile-card-table--inspection-measurements td:nth-child(2)::before { content: "Nominal"; }
+  .mobile-card-table--inspection-measurements td:nth-child(3)::before { content: "Actual"; }
+  .mobile-card-table--inspection-measurements td:nth-child(4)::before { content: "Tolerance / standard"; }
+  .mobile-card-table--inspection-measurements td:nth-child(5)::before { content: "Result"; }
+
+  .mobile-card-table--inspection-register td:nth-child(1)::before { content: "Inspection ID"; }
+  .mobile-card-table--inspection-register td:nth-child(2)::before { content: "Date"; }
+  .mobile-card-table--inspection-register td:nth-child(3)::before { content: "PO number"; }
+  .mobile-card-table--inspection-register td:nth-child(4)::before { content: "Customer"; }
+  .mobile-card-table--inspection-register td:nth-child(5)::before { content: "Part"; }
+  .mobile-card-table--inspection-register td:nth-child(6)::before { content: "Material"; }
+  .mobile-card-table--inspection-register td:nth-child(7)::before { content: "Machine"; }
+  .mobile-card-table--inspection-register td:nth-child(8)::before { content: "Batch / lot"; }
+  .mobile-card-table--inspection-register td:nth-child(9)::before { content: "Produced"; }
+  .mobile-card-table--inspection-register td:nth-child(10)::before { content: "Inspected"; }
+  .mobile-card-table--inspection-register td:nth-child(11)::before { content: "Passed"; }
+  .mobile-card-table--inspection-register td:nth-child(12)::before { content: "Rejected"; }
+  .mobile-card-table--inspection-register td:nth-child(13)::before { content: "Inspector"; }
+  .mobile-card-table--inspection-register td:nth-child(14)::before { content: "Status"; }
+  .mobile-card-table--inspection-register td:nth-child(15)::before { content: "Remarks"; }
+  .mobile-card-table--inspection-register td:nth-child(16)::before { content: "Actions"; }
+}

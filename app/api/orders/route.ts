@@ -7,9 +7,10 @@ import { getDatabase } from "../../lib/database";
 const priorities = ["Normal", "High", "Urgent"] as const;
 const statuses = [
   "Pending",
-  "Running",
-  "Ready in Stock",
-  "Raw Material Required",
+  "Processing",
+  "Packing",
+  "Partial Delivery",
+  "Fully Dispatched",
 ] as const;
 
 type OrderInput = {
@@ -39,11 +40,14 @@ type OrderRow = {
   due_date: string;
   priority: OrderInput["priority"];
   status: OrderInput["status"];
+  dispatched_quantity: number;
+  dispatch_record_count: number;
   created_at: Date;
   updated_at: Date;
 };
 
 function mapOrder(row: OrderRow) {
+  const dispatchedQuantity = Number(row.dispatched_quantity ?? 0);
   return {
     id: row.id,
     companyName: row.company_name,
@@ -56,7 +60,14 @@ function mapOrder(row: OrderRow) {
     purchaseDate: row.purchase_date,
     dueDate: row.due_date,
     priority: row.priority,
-    status: row.status,
+    status: dispatchedQuantity >= row.quantity
+      ? "Fully Dispatched"
+      : dispatchedQuantity > 0
+        ? "Partial Delivery"
+        : row.status,
+    dispatchedQuantity,
+    remainingQuantity: Math.max(0, row.quantity - dispatchedQuantity),
+    dispatchRecordCount: Number(row.dispatch_record_count ?? 0),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -134,9 +145,24 @@ export async function GET() {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
   const { rows } = await getDatabase().query<OrderRow>(
-    `SELECT id, company_name, po_number, order_by, item_name, material, quantity, rate,
-            purchase_date::TEXT, due_date::TEXT, priority, status, created_at, updated_at
-     FROM simple_customer_orders
+    `SELECT o.id, o.company_name, o.po_number, o.order_by, o.item_name, o.material,
+            o.quantity, o.rate, o.purchase_date::TEXT, o.due_date::TEXT, o.priority,
+            CASE
+              WHEN COALESCE(d.dispatched, 0) >= o.quantity THEN 'Fully Dispatched'
+              WHEN COALESCE(d.dispatched, 0) > 0 THEN 'Partial Delivery'
+              ELSE o.status
+            END AS status,
+            COALESCE(d.dispatched, 0)::INTEGER AS dispatched_quantity,
+            COALESCE(d.dispatch_record_count, 0)::INTEGER AS dispatch_record_count,
+            o.created_at, o.updated_at
+     FROM simple_customer_orders o
+     LEFT JOIN (
+       SELECT dr.po, SUM(dt.quantity)::BIGINT AS dispatched,
+              COUNT(DISTINCT dr.id)::INTEGER AS dispatch_record_count
+       FROM dispatch_records dr
+       LEFT JOIN dispatch_transactions dt ON dt.dispatch_id = dr.id
+       GROUP BY dr.po
+     ) d ON LOWER(d.po) = LOWER(o.po_number)
      ORDER BY created_at DESC, po_number`,
   );
   return NextResponse.json({ orders: rows.map(mapOrder) }, {
@@ -159,7 +185,7 @@ export async function POST(request: Request) {
     body = null;
   }
   const input = parseOrder(body);
-  if (!input) {
+  if (!input || input.status === "Partial Delivery" || input.status === "Fully Dispatched") {
     return NextResponse.json({ error: "Enter valid order details." }, { status: 400 });
   }
 
@@ -167,6 +193,24 @@ export async function POST(request: Request) {
   const client = await getDatabase().connect();
   try {
     await client.query("BEGIN");
+    const { rows: dispatchRows } = await client.query<{
+      dispatched_quantity: number;
+      dispatch_record_count: number;
+    }>(
+      `SELECT COALESCE(SUM(dt.quantity), 0)::INTEGER AS dispatched_quantity,
+              COUNT(DISTINCT dr.id)::INTEGER AS dispatch_record_count
+       FROM dispatch_records dr
+       LEFT JOIN dispatch_transactions dt ON dt.dispatch_id = dr.id
+       WHERE LOWER(dr.po) = LOWER($1)`,
+      [input.poNumber],
+    );
+    const dispatchedQuantity = Number(dispatchRows[0].dispatched_quantity);
+    if (dispatchedQuantity > input.quantity) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({
+        error: `Ordered quantity cannot be less than the ${dispatchedQuantity} PCS already dispatched for this PO.`,
+      }, { status: 409 });
+    }
     const { rows } = await client.query<OrderRow>(
       `INSERT INTO simple_customer_orders
          (id, company_name, po_number, order_by, item_name, material, quantity, rate,
@@ -196,7 +240,13 @@ export async function POST(request: Request) {
       [user.id, user.username, input.poNumber, JSON.stringify({ quantity: input.quantity })],
     );
     await client.query("COMMIT");
-    return NextResponse.json({ order: mapOrder(rows[0]) }, { status: 201 });
+    return NextResponse.json({
+      order: mapOrder({
+        ...rows[0],
+        dispatched_quantity: dispatchedQuantity,
+        dispatch_record_count: Number(dispatchRows[0].dispatch_record_count),
+      }),
+    }, { status: 201 });
   } catch (error) {
     await client.query("ROLLBACK");
     if (isUniqueViolation(error)) {

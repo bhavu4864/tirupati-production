@@ -663,7 +663,7 @@ export default function InspectionPage() {
                   </p>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[850px] text-left text-sm">
+                  <table className="mobile-card-table mobile-card-table--inspection-measurements w-full min-w-[850px] text-left text-sm">
                     <thead className="text-xs text-slate-500">
                       <tr>
                         <th className="px-4 py-3 font-semibold">Characteristic</th>
@@ -894,7 +894,7 @@ export default function InspectionPage() {
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1900px] text-left text-sm">
+            <table className="mobile-card-table mobile-card-table--inspection-register w-full min-w-[1900px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-4 font-semibold">Inspection ID</th>
@@ -968,7 +968,8 @@ export default function InspectionPage() {
             </table>
           </div>
           <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-400 sm:px-6">
-            Scroll horizontally to review all inspection register fields.
+            <span className="hidden md:inline">Scroll horizontally to review all inspection register fields.</span>
+            <span className="md:hidden">Use the filters to narrow records and review each inspection card.</span>
           </p>
         </section>
 
@@ -1046,7 +1047,7 @@ export default function InspectionPage() {
                 <h3 className="text-sm font-bold">Inspection measurements</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[580px] text-left text-sm">
+                <table className="mobile-card-table mobile-card-table--inspection-measurements w-full min-w-[580px] text-left text-sm">
                   <thead className="text-xs text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-semibold">Characteristic</th>
