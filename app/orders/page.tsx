@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import MainNavigation from "../components/main-navigation";
 import { useAuth } from "../components/auth-provider";
+import {
+  cancelDispatch,
+  createDispatch,
+  getDispatchOrderQuantities,
+  markDispatchShipped,
+  useProductionOrders,
+} from "../lib/production-store";
 
 const priorities = ["Normal", "High", "Urgent"] as const;
 const statuses = [
@@ -68,8 +75,10 @@ function formatDate(value: string) {
 export default function OrdersPage() {
   const { user } = useAuth();
   const canManage = user?.role === "ADMIN";
+  const productionOrders = useProductionOrders();
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [draft, setDraft] = useState<OrderDraft | null>(null);
+  const [dispatchNow, setDispatchNow] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -98,6 +107,7 @@ export default function OrdersPage() {
 
   function openNewOrder() {
     setDraft(emptyOrder());
+    setDispatchNow("");
     setEditingId(null);
     setError("");
     setMessage("");
@@ -117,6 +127,7 @@ export default function OrdersPage() {
       priority: order.priority,
       status: order.status,
     });
+    setDispatchNow("");
     setEditingId(order.id);
     setError("");
     setMessage("");
@@ -129,21 +140,92 @@ export default function OrdersPage() {
       setError("Due / Dispatch Date cannot be before Purchase Date.");
       return;
     }
+    const isDispatchAction =
+      draft.status === "Partial Delivery" || draft.status === "Fully Dispatched";
+    const editedOrder = editingId
+      ? orders.find((order) => order.id === editingId)
+      : undefined;
+    const linkedProductionOrder = editedOrder
+      ? productionOrders.find(
+          (order) => order.po.toLowerCase() === editedOrder.poNumber.toLowerCase(),
+        )
+      : undefined;
+    const dispatchQuantity = draft.status === "Fully Dispatched"
+      ? editedOrder?.remainingQuantity ?? 0
+      : Number(dispatchNow);
+
+    if (isDispatchAction) {
+      if (!editedOrder || !linkedProductionOrder) {
+        setError("This order has no matching production order, so a dispatch cannot be recorded.");
+        return;
+      }
+      if (!Number.isInteger(dispatchQuantity) || dispatchQuantity <= 0) {
+        setError(draft.status === "Partial Delivery"
+          ? "Enter a positive whole-number quantity to dispatch."
+          : "This order has no remaining quantity to dispatch.");
+        return;
+      }
+      if (dispatchQuantity > editedOrder.remainingQuantity) {
+        setError(`Dispatch quantity cannot exceed the remaining ${editedOrder.remainingQuantity.toLocaleString()} PCS.`);
+        return;
+      }
+      const dispatchCapacity = getDispatchOrderQuantities(linkedProductionOrder.po);
+      if (dispatchQuantity > dispatchCapacity.availableToAllocate) {
+        setError(`Only ${dispatchCapacity.availableToAllocate.toLocaleString()} PCS are currently available from QC-passed, unallocated production.`);
+        return;
+      }
+      if (!window.confirm(
+        `Dispatch ${dispatchQuantity.toLocaleString()} PCS for ${editedOrder.poNumber}?`,
+      )) {
+        return;
+      }
+    }
+
     setSaving(true);
     setError("");
     setMessage("");
     try {
+      const orderToSave = isDispatchAction
+        ? {
+            ...draft,
+            status: editedOrder && ["Pending", "Processing", "Packing"].includes(editedOrder.status)
+              ? editedOrder.status
+              : "Packing",
+          }
+        : draft;
       const response = await fetch(
         editingId ? `/api/orders/${encodeURIComponent(editingId)}` : "/api/orders",
         {
           method: editingId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(draft),
+          body: JSON.stringify(orderToSave),
         },
       );
       if (!response.ok) {
         setError(await responseError(response));
         return;
+      }
+      if (isDispatchAction && editedOrder && linkedProductionOrder) {
+        const created = await createDispatch({
+          po: linkedProductionOrder.po,
+          quantity: dispatchQuantity,
+          date: today(),
+          remarks: `Order Management ${draft.status.toLowerCase()}`,
+        });
+        if (!created.success || !created.id) {
+          setError(created.error ?? "Dispatch record could not be created.");
+          await loadOrders();
+          return;
+        }
+        const shipped = await markDispatchShipped(created.id, dispatchQuantity);
+        if (!shipped.success) {
+          const cancelled = await cancelDispatch(created.id);
+          setError(cancelled.success
+            ? shipped.error ?? "Dispatch could not be completed; its unused allocation was cancelled."
+            : `${shipped.error ?? "Dispatch could not be completed."} The unused dispatch allocation could not be cancelled; review Dispatch History.`);
+          await loadOrders();
+          return;
+        }
       }
       setMessage(editingId ? "Order updated." : "Order created.");
       setDraft(null);
@@ -232,7 +314,62 @@ export default function OrdersPage() {
             <label className="text-sm font-medium">Purchase Date<input required type="date" value={draft.purchaseDate} max={draft.dueDate || undefined} onChange={(event) => setDraft({ ...draft, purchaseDate: event.target.value })} className={inputClass} /></label>
             <label className="text-sm font-medium">Due / Dispatch Date<input required type="date" value={draft.dueDate} min={draft.purchaseDate || undefined} onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })} className={inputClass} /></label>
             <label className="text-sm font-medium">Priority<select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as OrderPriority })} className={inputClass}>{priorities.map((priority) => <option key={priority}>{priority}</option>)}</select></label>
-            <label className="text-sm font-medium">Status<select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as OrderStatus })} className={inputClass}>{statuses.map((status) => <option key={status} disabled={status === "Partial Delivery" || status === "Fully Dispatched"}>{status}</option>)}</select></label>
+            <label className="text-sm font-medium">
+              Status
+              <select
+                value={draft.status}
+                onChange={(event) => {
+                  const status = event.target.value as OrderStatus;
+                  setDraft({ ...draft, status });
+                  if (status === "Partial Delivery") setDispatchNow("");
+                }}
+                className={`${inputClass} cursor-pointer focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200`}
+              >
+                {statuses.map((status) => (
+                  <option
+                    key={status}
+                    disabled={!editingId && (status === "Partial Delivery" || status === "Fully Dispatched")}
+                  >
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {draft.status === "Partial Delivery" && editingId && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 sm:col-span-2 lg:col-span-3">
+                <label className="block text-sm font-medium">
+                  Quantity to dispatch now (PCS)
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max={orders.find((order) => order.id === editingId)?.remainingQuantity ?? undefined}
+                    step="1"
+                    inputMode="numeric"
+                    value={dispatchNow}
+                    onChange={(event) => setDispatchNow(event.target.value)}
+                    className={inputClass}
+                  />
+                </label>
+                <p className="mt-2 text-sm text-slate-700">
+                  Dispatched after this dispatch:{" "}
+                  <strong>{((orders.find((order) => order.id === editingId)?.dispatchedQuantity ?? 0) + Number(dispatchNow || 0)).toLocaleString()} PCS</strong>
+                  <span className="mx-2 text-slate-400">·</span>
+                  Remaining after this dispatch:{" "}
+                  <strong>{Math.max(0, (orders.find((order) => order.id === editingId)?.remainingQuantity ?? 0) - Number(dispatchNow || 0)).toLocaleString()} PCS</strong>
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Dispatches are limited to the matching production order&apos;s QC-passed, unallocated quantity.
+                </p>
+              </div>
+            )}
+            {draft.status === "Fully Dispatched" && editingId && (
+              <p className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 sm:col-span-2 lg:col-span-3">
+                Saving will dispatch the remaining{" "}
+                <strong>{(orders.find((order) => order.id === editingId)?.remainingQuantity ?? 0).toLocaleString()} PCS</strong>.
+                Dispatching is subject to available QC-passed production.
+              </p>
+            )}
             <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
               <button type="submit" disabled={saving} className="min-h-11 rounded-lg bg-blue-600 px-4 font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : editingId ? "Save Order" : "Create Order"}</button>
               <button type="button" onClick={() => { setDraft(null); setEditingId(null); }} className="min-h-11 rounded-lg border border-slate-300 px-4 font-medium">Cancel</button>
