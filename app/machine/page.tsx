@@ -16,8 +16,12 @@ type MachineRecord = {
   machineName: string;
   date: string;
   partNo: string;
-  morningPcs: number;
-  eveningPcs: number;
+  morningPcs: number | null;
+  eveningPcs: number | null;
+  morningStartTime: string;
+  morningEndTime: string;
+  eveningStartTime: string;
+  eveningEndTime: string;
   totalPcs: number;
   operatorName: string;
   breakdown: "Yes" | "No";
@@ -27,8 +31,12 @@ type MachineData = {
   machineId: string;
   date: string;
   partNo: string;
-  morningPcs: number;
-  eveningPcs: number;
+  morningPcs: number | null;
+  eveningPcs: number | null;
+  morningStartTime: string;
+  morningEndTime: string;
+  eveningStartTime: string;
+  eveningEndTime: string;
   operatorName: string;
   breakdown: "Yes" | "No";
   breakdownReason: string;
@@ -38,12 +46,16 @@ const localDate = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
-const emptyData = (machineId = ""): MachineData => ({
+const emptyData = (machineId = "", date = localDate()): MachineData => ({
   machineId,
-  date: localDate(),
+  date,
   partNo: "",
-  morningPcs: 0,
-  eveningPcs: 0,
+  morningPcs: null,
+  eveningPcs: null,
+  morningStartTime: "08:30",
+  morningEndTime: "12:30",
+  eveningStartTime: "13:00",
+  eveningEndTime: "19:00",
   operatorName: "",
   breakdown: "No",
   breakdownReason: "",
@@ -68,6 +80,7 @@ export default function MachinePage() {
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [isEntryOpen, setIsEntryOpen] = useState(false);
   const [draft, setDraft] = useState<MachineData | null>(null);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [newMachineName, setNewMachineName] = useState("");
   const [machineNameDrafts, setMachineNameDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -185,30 +198,74 @@ export default function MachinePage() {
   async function saveDailyData(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft || saving) return;
+    if (draft.morningPcs === null && draft.eveningPcs === null) {
+      setError("Enter production PCS for at least one period before saving.");
+      return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
     try {
       const response = await fetch("/api/machine-data", {
-        method: "POST",
+        method: editingRecordId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, id: editingRecordId }),
       });
       if (!response.ok) {
         setError(await responseError(response));
         return;
       }
-      setMessage("Daily production record saved.");
+      setMessage(editingRecordId ? "Production record updated." : "Production record saved.");
       setSelectedDate(draft.date);
       setShowAllHistory(false);
       setIsEntryOpen(false);
-      setDraft(emptyData(machines.find((machine) => machine.status === "Active")?.id ?? ""));
+      setDraft(null);
+      setEditingRecordId(null);
       await loadMachineData();
     } catch {
       setError("Unable to save the daily production record.");
     } finally {
       setSaving(false);
     }
+  }
+
+  function startNewProduction() {
+    setDraft(emptyData(
+      machines.find((machine) => machine.status === "Active")?.id ?? "",
+      selectedDate,
+    ));
+    setEditingRecordId(null);
+    setIsEntryOpen(true);
+    setError("");
+    setMessage("");
+  }
+
+  function editProduction(record: MachineRecord) {
+    setDraft({
+      machineId: record.machineId,
+      date: record.date,
+      partNo: record.partNo,
+      morningPcs: record.morningPcs,
+      eveningPcs: record.eveningPcs,
+      morningStartTime: record.morningStartTime,
+      morningEndTime: record.morningEndTime,
+      eveningStartTime: record.eveningStartTime,
+      eveningEndTime: record.eveningEndTime,
+      operatorName: record.operatorName,
+      breakdown: record.breakdown,
+      breakdownReason: record.breakdownReason,
+    });
+    setEditingRecordId(record.id);
+    setIsEntryOpen(true);
+    setError("");
+    setMessage("");
+  }
+
+  function cancelProductionEdit() {
+    setDraft(null);
+    setEditingRecordId(null);
+    setIsEntryOpen(false);
+    setError("");
   }
 
   const inputClass = "mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base";
@@ -237,10 +294,10 @@ export default function MachinePage() {
             {canRecord && (
               <button
                 type="button"
-                onClick={() => setIsEntryOpen((open) => !open)}
+                onClick={() => isEntryOpen ? cancelProductionEdit() : startNewProduction()}
                 className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"
               >
-                {isEntryOpen ? "Close Daily Production" : "Add Daily Production"}
+                {isEntryOpen ? "Cancel Production" : "Add Production"}
               </button>
             )}
             <a
@@ -359,21 +416,36 @@ export default function MachinePage() {
 
         {canRecord && isEntryOpen && (
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-lg font-semibold">Add Daily Production</h2>
+            <h2 className="text-lg font-semibold">
+              {editingRecordId ? "Edit Production Record" : "Add Production"}
+            </h2>
             <form onSubmit={saveDailyData} className="machine-entry-form mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="text-sm font-medium">Machine<select required value={draft?.machineId ?? ""} onChange={(event) => setDraft({ ...(draft ?? emptyData()), machineId: event.target.value })} className={inputClass}><option value="">Select machine</option>{machines.filter((machine) => machine.status === "Active").map((machine) => <option key={machine.id} value={machine.id}>{machine.machineName}</option>)}</select></label>
-              <label className="text-sm font-medium">Date<input required type="date" value={draft?.date ?? localDate()} onChange={(event) => setDraft({ ...(draft ?? emptyData()), date: event.target.value })} className={inputClass} /></label>
+              <label className="text-sm font-medium">Production Date<input required type="date" value={draft?.date ?? selectedDate} onChange={(event) => setDraft({ ...(draft ?? emptyData()), date: event.target.value })} className={inputClass} /></label>
+              <label className="text-sm font-medium">Machine<select required value={draft?.machineId ?? ""} onChange={(event) => setDraft({ ...(draft ?? emptyData()), machineId: event.target.value })} className={inputClass}><option value="">Select machine</option>{machines.filter((machine) => machine.status === "Active" || machine.id === draft?.machineId).map((machine) => <option key={machine.id} value={machine.id}>{machine.machineName}{machine.status === "Inactive" ? " (Inactive)" : ""}</option>)}</select></label>
               <label className="text-sm font-medium">Part No.<input required maxLength={120} value={draft?.partNo ?? ""} onChange={(event) => setDraft({ ...(draft ?? emptyData()), partNo: event.target.value })} className={inputClass} /></label>
-              <label className="text-sm font-medium">8:00 AM to 12:30 PM - PCS<input required type="number" min="0" step="1" value={draft?.morningPcs ?? 0} onChange={(event) => setDraft({ ...(draft ?? emptyData()), morningPcs: Number(event.target.value) })} className={inputClass} /></label>
-              <label className="text-sm font-medium">1:00 PM to 7:00 PM - PCS<input required type="number" min="0" step="1" value={draft?.eveningPcs ?? 0} onChange={(event) => setDraft({ ...(draft ?? emptyData()), eveningPcs: Number(event.target.value) })} className={inputClass} /></label>
+              <label className="text-sm font-medium">Operator Name<input required maxLength={120} value={draft?.operatorName ?? ""} onChange={(event) => setDraft({ ...(draft ?? emptyData()), operatorName: event.target.value })} className={inputClass} /></label>
+              <fieldset className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:col-span-2 lg:col-span-3 sm:grid-cols-2">
+                <legend className="px-1 text-sm font-semibold">Morning production period</legend>
+                <label className="text-sm font-medium">Start time<input required type="time" value={draft?.morningStartTime ?? "08:30"} onChange={(event) => setDraft({ ...(draft ?? emptyData()), morningStartTime: event.target.value })} className={inputClass} /></label>
+                <label className="text-sm font-medium">End time<input required type="time" value={draft?.morningEndTime ?? "12:30"} onChange={(event) => setDraft({ ...(draft ?? emptyData()), morningEndTime: event.target.value })} className={inputClass} /></label>
+                <label className="text-sm font-medium sm:col-span-2">Morning PCS<input type="number" min="0" step="1" inputMode="numeric" value={draft?.morningPcs ?? ""} placeholder="Not entered" onChange={(event) => setDraft({ ...(draft ?? emptyData()), morningPcs: event.target.value === "" ? null : Number(event.target.value) })} className={inputClass} /></label>
+              </fieldset>
+              <fieldset className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:col-span-2 lg:col-span-3 sm:grid-cols-2">
+                <legend className="px-1 text-sm font-semibold">Afternoon production period</legend>
+                <label className="text-sm font-medium">Start time<input required type="time" value={draft?.eveningStartTime ?? "13:00"} onChange={(event) => setDraft({ ...(draft ?? emptyData()), eveningStartTime: event.target.value })} className={inputClass} /></label>
+                <label className="text-sm font-medium">End time<input required type="time" value={draft?.eveningEndTime ?? "19:00"} onChange={(event) => setDraft({ ...(draft ?? emptyData()), eveningEndTime: event.target.value })} className={inputClass} /></label>
+                <label className="text-sm font-medium sm:col-span-2">Afternoon PCS<input type="number" min="0" step="1" inputMode="numeric" value={draft?.eveningPcs ?? ""} placeholder="Not entered" onChange={(event) => setDraft({ ...(draft ?? emptyData()), eveningPcs: event.target.value === "" ? null : Number(event.target.value) })} className={inputClass} /></label>
+              </fieldset>
               <div className="machine-total rounded-lg bg-slate-50 p-3 text-sm sm:col-span-2 lg:col-span-3">
                 <span className="text-slate-500">Total PCS</span>
                 <strong className="ml-2 text-lg">{((draft?.morningPcs ?? 0) + (draft?.eveningPcs ?? 0)).toLocaleString()}</strong>
               </div>
-              <label className="text-sm font-medium">Operator Name<input required maxLength={120} value={draft?.operatorName ?? ""} onChange={(event) => setDraft({ ...(draft ?? emptyData()), operatorName: event.target.value })} className={inputClass} /></label>
               <label className="text-sm font-medium">Breakdown<select value={draft?.breakdown ?? "No"} onChange={(event) => setDraft({ ...(draft ?? emptyData()), breakdown: event.target.value as MachineData["breakdown"], breakdownReason: event.target.value === "No" ? "" : (draft?.breakdownReason ?? "") })} className={inputClass}><option>Yes</option><option>No</option></select></label>
               {draft?.breakdown === "Yes" && <label className="text-sm font-medium sm:col-span-2 lg:col-span-3">Breakdown Reason / What Happened<textarea required maxLength={1000} rows={2} value={draft.breakdownReason} onChange={(event) => setDraft({ ...draft, breakdownReason: event.target.value })} className={inputClass} /></label>}
-              <button type="submit" disabled={saving || !draft?.machineId} className="machine-save min-h-11 rounded-lg bg-blue-600 px-4 font-semibold text-white disabled:opacity-60 sm:col-span-2 lg:col-span-3">{saving ? "Saving…" : "Save Daily Production"}</button>
+              <div className="flex gap-2 sm:col-span-2 lg:col-span-3">
+                <button type="submit" disabled={saving || !draft?.machineId || (draft.morningPcs === null && draft.eveningPcs === null)} className="machine-save min-h-11 flex-1 rounded-lg bg-blue-600 px-4 font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : "Save"}</button>
+                <button type="button" onClick={cancelProductionEdit} disabled={saving} className="min-h-11 rounded-lg border border-slate-300 px-4 font-medium disabled:opacity-60">Cancel</button>
+              </div>
             </form>
           </section>
         )}
@@ -402,12 +474,13 @@ export default function MachinePage() {
                           <tr>
                             <th className="px-4 py-3">Date</th>
                             <th className="px-4 py-3">Part No.</th>
-                            <th className="px-4 py-3">8:00 AM to 12:30 PM - PCS</th>
-                            <th className="px-4 py-3">1:00 PM to 7:00 PM - PCS</th>
+                            <th className="px-4 py-3">Morning PCS</th>
+                            <th className="px-4 py-3">Afternoon PCS</th>
                             <th className="px-4 py-3">Total PCS</th>
                             <th className="px-4 py-3">Operator Name</th>
                             <th className="px-4 py-3">Breakdown</th>
                             <th className="px-4 py-3">Breakdown Reason</th>
+                            {canRecord && <th className="px-4 py-3">Action</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -415,14 +488,21 @@ export default function MachinePage() {
                             <tr key={record.id} className="whitespace-nowrap">
                               <td className="px-4 py-3">{formatDate(record.date)}</td>
                               <td className="px-4 py-3">{record.partNo}</td>
-                              <td className="px-4 py-3">{record.morningPcs.toLocaleString()}</td>
-                              <td className="px-4 py-3">{record.eveningPcs.toLocaleString()}</td>
+                              <td className="px-4 py-3">
+                                <span className="block text-xs text-slate-500">{record.morningStartTime}–{record.morningEndTime}</span>
+                                {record.morningPcs === null ? "Not entered" : record.morningPcs.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="block text-xs text-slate-500">{record.eveningStartTime}–{record.eveningEndTime}</span>
+                                {record.eveningPcs === null ? "Not entered" : record.eveningPcs.toLocaleString()}
+                              </td>
                               <td className="px-4 py-3 font-semibold">{record.totalPcs.toLocaleString()}</td>
                               <td className="px-4 py-3">{record.operatorName}</td>
                               <td className="px-4 py-3">{record.breakdown}</td>
                               <td className="max-w-xs whitespace-normal px-4 py-3">
                                 {record.breakdown === "Yes" ? record.breakdownReason : ""}
                               </td>
+                              {canRecord && <td className="px-4 py-3"><button type="button" onClick={() => editProduction(record)} className="min-h-10 rounded-lg border border-blue-200 px-3 font-semibold text-blue-700 hover:bg-blue-50">Edit</button></td>}
                             </tr>
                           ))}
                         </tbody>
@@ -443,11 +523,12 @@ export default function MachinePage() {
                             </p>
                           </div>
                           <dl className="grid grid-cols-2 gap-3 text-sm">
-                            <div><dt className="text-xs text-slate-500">8:00 AM–12:30 PM</dt><dd className="font-medium">{record.morningPcs.toLocaleString()} PCS</dd></div>
-                            <div><dt className="text-xs text-slate-500">1:00 PM–7:00 PM</dt><dd className="font-medium">{record.eveningPcs.toLocaleString()} PCS</dd></div>
+                            <div><dt className="text-xs text-slate-500">Morning · {record.morningStartTime}–{record.morningEndTime}</dt><dd className="font-medium">{record.morningPcs === null ? "Not entered" : `${record.morningPcs.toLocaleString()} PCS`}</dd></div>
+                            <div><dt className="text-xs text-slate-500">Afternoon · {record.eveningStartTime}–{record.eveningEndTime}</dt><dd className="font-medium">{record.eveningPcs === null ? "Not entered" : `${record.eveningPcs.toLocaleString()} PCS`}</dd></div>
                             <div><dt className="text-xs text-slate-500">Operator</dt><dd className="break-words font-medium">{record.operatorName}</dd></div>
                             <div><dt className="text-xs text-slate-500">Breakdown</dt><dd className="font-medium">{record.breakdown}</dd></div>
                           </dl>
+                          {canRecord && <button type="button" onClick={() => editProduction(record)} className="min-h-11 w-full rounded-lg border border-blue-200 font-semibold text-blue-700 hover:bg-blue-50">Edit</button>}
                           {record.breakdown === "Yes" && (
                             <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
                               <span className="block text-xs font-semibold text-amber-700">Breakdown reason</span>

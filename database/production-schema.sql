@@ -182,8 +182,12 @@ CREATE TABLE IF NOT EXISTS machine_daily_records (
   machine_name TEXT NOT NULL,
   production_date DATE NOT NULL,
   part_no TEXT NOT NULL,
-  morning_pcs INTEGER NOT NULL DEFAULT 0 CHECK (morning_pcs >= 0),
-  evening_pcs INTEGER NOT NULL DEFAULT 0 CHECK (evening_pcs >= 0),
+  morning_pcs INTEGER CHECK (morning_pcs IS NULL OR morning_pcs >= 0),
+  evening_pcs INTEGER CHECK (evening_pcs IS NULL OR evening_pcs >= 0),
+  morning_start_time TIME NOT NULL DEFAULT '08:30',
+  morning_end_time TIME NOT NULL DEFAULT '12:30',
+  evening_start_time TIME NOT NULL DEFAULT '13:00',
+  evening_end_time TIME NOT NULL DEFAULT '19:00',
   operator_name TEXT NOT NULL,
   breakdown TEXT NOT NULL CHECK (breakdown IN ('Yes', 'No')),
   breakdown_reason TEXT NOT NULL DEFAULT '',
@@ -196,13 +200,23 @@ CREATE TABLE IF NOT EXISTS machine_daily_records (
 );
 
 ALTER TABLE machine_daily_records
-  ADD COLUMN IF NOT EXISTS morning_pcs INTEGER NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS evening_pcs INTEGER NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS morning_pcs INTEGER,
+  ADD COLUMN IF NOT EXISTS evening_pcs INTEGER,
+  ADD COLUMN IF NOT EXISTS morning_start_time TIME NOT NULL DEFAULT '08:30',
+  ADD COLUMN IF NOT EXISTS morning_end_time TIME NOT NULL DEFAULT '12:30',
+  ADD COLUMN IF NOT EXISTS evening_start_time TIME NOT NULL DEFAULT '13:00',
+  ADD COLUMN IF NOT EXISTS evening_end_time TIME NOT NULL DEFAULT '19:00';
+
+ALTER TABLE machine_daily_records
+  ALTER COLUMN morning_pcs DROP NOT NULL,
+  ALTER COLUMN evening_pcs DROP NOT NULL,
+  ALTER COLUMN morning_pcs DROP DEFAULT,
+  ALTER COLUMN evening_pcs DROP DEFAULT;
 
 DO $$
 BEGIN
   ALTER TABLE machine_daily_records
-    ADD CONSTRAINT machine_daily_records_morning_pcs_check CHECK (morning_pcs >= 0);
+    ADD CONSTRAINT machine_daily_records_morning_pcs_check CHECK (morning_pcs IS NULL OR morning_pcs >= 0);
 EXCEPTION WHEN duplicate_object THEN
   NULL;
 END $$;
@@ -210,7 +224,7 @@ END $$;
 DO $$
 BEGIN
   ALTER TABLE machine_daily_records
-    ADD CONSTRAINT machine_daily_records_evening_pcs_check CHECK (evening_pcs >= 0);
+    ADD CONSTRAINT machine_daily_records_evening_pcs_check CHECK (evening_pcs IS NULL OR evening_pcs >= 0);
 EXCEPTION WHEN duplicate_object THEN
   NULL;
 END $$;

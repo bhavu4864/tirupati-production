@@ -27,15 +27,15 @@ export async function GET(request: Request) {
     production_date: string;
     machine_name: string;
     part_no: string;
-    morning_pcs: number;
-    evening_pcs: number;
+    morning_pcs: number | null;
+    evening_pcs: number | null;
     total_pcs: number;
     operator_name: string;
     breakdown: "Yes" | "No";
     breakdown_reason: string;
   }>(
     `SELECT production_date::TEXT, machine_name, part_no, morning_pcs, evening_pcs,
-            (morning_pcs + evening_pcs)::INTEGER AS total_pcs,
+            (COALESCE(morning_pcs, 0) + COALESCE(evening_pcs, 0))::INTEGER AS total_pcs,
             operator_name, breakdown, breakdown_reason
      FROM machine_daily_records
      WHERE ($1::DATE IS NULL OR production_date = $1::DATE)
