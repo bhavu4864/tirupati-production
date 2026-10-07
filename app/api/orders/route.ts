@@ -85,6 +85,7 @@ function validDate(value: unknown): value is string {
 
 function parseOrder(value: unknown): OrderInput | null {
   if (!isRecord(value)) return null;
+  const status = value.status === undefined ? "Pending" : value.status;
   if (
     typeof value.companyName !== "string" ||
     !value.companyName.trim() ||
@@ -109,8 +110,8 @@ function parseOrder(value: unknown): OrderInput | null {
     value.dueDate < value.purchaseDate ||
     typeof value.priority !== "string" ||
     !priorities.includes(value.priority as (typeof priorities)[number]) ||
-    typeof value.status !== "string" ||
-    !statuses.includes(value.status as (typeof statuses)[number])
+    typeof status !== "string" ||
+    !statuses.includes(status as (typeof statuses)[number])
   ) {
     return null;
   }
@@ -126,7 +127,7 @@ function parseOrder(value: unknown): OrderInput | null {
     purchaseDate: value.purchaseDate,
     dueDate: value.dueDate,
     priority: value.priority as OrderInput["priority"],
-    status: value.status as OrderInput["status"],
+    status: status as OrderInput["status"],
   };
 }
 

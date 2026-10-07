@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS simple_customer_orders (
   purchase_date DATE NOT NULL,
   due_date DATE NOT NULL,
   priority TEXT NOT NULL CHECK (priority IN ('Normal', 'High', 'Urgent')),
-  status TEXT NOT NULL CHECK (
+  status TEXT NOT NULL DEFAULT 'Pending' CHECK (
     status IN ('Pending', 'Processing', 'Packing', 'Partial Delivery', 'Fully Dispatched')
   ),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -131,6 +131,9 @@ CREATE TABLE IF NOT EXISTS simple_customer_orders (
 
 ALTER TABLE simple_customer_orders
   DROP CONSTRAINT IF EXISTS simple_customer_orders_status_check;
+
+ALTER TABLE simple_customer_orders
+  ALTER COLUMN status SET DEFAULT 'Pending';
 
 UPDATE simple_customer_orders
 SET status = CASE status
